@@ -21,6 +21,8 @@ This repository contains the complete implementation of the **Agent-to-Agent (A2
 - ✅ **Payment Integration** - Request and process payments via Solana
 - ✅ **Health Checks** - Ping/pong for agent availability
 - ✅ **Message Queuing** - Reliable message delivery system
+- ✅ **SERV Integration** - Unified service registry and discovery via ONET
+- ✅ **OpenSERV Integration** - AI agent workflow execution via OpenSERV platform
 
 ---
 
@@ -197,6 +199,31 @@ This demo shows:
 - Solana payment execution
 - Payment confirmation
 
+#### 3. **SERV Discovery Demo**
+```bash
+cd A2A/demo
+python3 a2a_serv_discovery_demo.py
+```
+
+This demo shows:
+- Agent capability registration
+- SERV service registration
+- Service discovery via SERV infrastructure
+- Service filtering
+
+#### 4. **OpenSERV Workflow Demo**
+```bash
+cd A2A/demo
+export OPENSERV_ENDPOINT="https://api.openserv.ai/agents/demo"
+python3 a2a_openserv_workflow_demo.py
+```
+
+This demo shows:
+- OpenSERV agent registration
+- Workflow execution via A2A Protocol
+- A2A message routing
+- OpenSERV integration
+
 ### Complete Flow Example
 
 ```python
@@ -239,6 +266,8 @@ consumer.send_solana_payment(provider.wallet_address, 0.01)
 - **Bash:** `A2A/test/test_a2a_endpoints.sh`
 - **Python:** `A2A/test/test_a2a_endpoints.py`
 - **Comprehensive:** `A2A/test/run_a2a_tests.sh`
+- **SERV Integration:** `A2A/test/test_a2a_serv_integration.py`
+- **OpenSERV Integration:** `A2A/test/test_a2a_openserv_integration.py`
 
 ### Test Coverage
 
@@ -251,6 +280,8 @@ consumer.send_solana_payment(provider.wallet_address, 0.01)
 | Payment Requests | ✅ |
 | Message Queuing | ✅ |
 | Solana Integration | ✅ |
+| SERV Integration | ✅ |
+| OpenSERV Integration | ✅ |
 
 ### Running Tests
 
@@ -268,6 +299,35 @@ cd A2A/test
 ---
 
 ## Integration
+
+### SERV Infrastructure Integration
+
+The A2A Protocol integrates with SERV infrastructure (ONET Unified Architecture) for unified service discovery:
+
+- **Service Registration** - Register A2A agents as SERV UnifiedServices
+- **Service Discovery** - Discover agents via SERV infrastructure
+- **Unified Registry** - Single point of service registration and discovery
+
+**Endpoints:**
+- `POST /api/a2a/agent/register-service` - Register agent as SERV service
+- `GET /api/a2a/agents/discover-serv` - Discover agents via SERV
+- `GET /api/a2a/agents/discover-serv?service={name}` - Discover by service
+
+See [`docs/INTEGRATION_GUIDE.md`](docs/INTEGRATION_GUIDE.md) for details.
+
+### OpenSERV Integration
+
+The A2A Protocol integrates with OpenSERV for AI agent workflow execution:
+
+- **Agent Registration** - Register OpenSERV agents as A2A agents
+- **Workflow Execution** - Execute AI workflows via OpenSERV through A2A Protocol
+- **Unified Communication** - Route workflows through A2A messaging system
+
+**Endpoints:**
+- `POST /api/a2a/openserv/register` - Register OpenSERV agent
+- `POST /api/a2a/workflow/execute` - Execute AI workflow
+
+See [`docs/INTEGRATION_GUIDE.md`](docs/INTEGRATION_GUIDE.md) and [`docs/A2A_OPENSERV_INTEGRATION.md`](docs/A2A_OPENSERV_INTEGRATION.md) for details.
 
 ### Payment Integration
 
@@ -287,6 +347,7 @@ The A2A Protocol is fully integrated with:
 - **Wallet Manager** - Solana wallet creation and management
 - **Key Manager** - Public key to avatar lookup
 - **Storage Providers** - LocalFileOASIS for wallet storage
+- **SERV Infrastructure** - ONET Unified Architecture for service registry
 
 ---
 
@@ -327,6 +388,12 @@ See [`A2A_PROTOCOL_ALIGNMENT.md`](A2A_PROTOCOL_ALIGNMENT.md) for detailed compar
 - [`TESTING_GUIDE.md`](TESTING_GUIDE.md) - Testing instructions
 - [`TEST_RESULTS.md`](TEST_RESULTS.md) - Test results
 
+### Integration Documentation
+
+- [`docs/A2A_OPENSERV_INTEGRATION.md`](docs/A2A_OPENSERV_INTEGRATION.md) - SERV and OpenSERV integration plan
+- [`docs/INTEGRATION_GUIDE.md`](docs/INTEGRATION_GUIDE.md) - Integration guide and examples
+- [`docs/TROUBLESHOOTING_GUIDE.md`](docs/TROUBLESHOOTING_GUIDE.md) - Troubleshooting common issues
+
 ### Demo Documentation
 
 - [`demo/A2A_PAYMENT_INTEGRATION.md`](demo/A2A_PAYMENT_INTEGRATION.md) - Payment integration guide
@@ -346,17 +413,24 @@ A2A/
 ├── TEST_RESULTS.md                    # Test results
 │
 ├── docs/
-│   └── OASIS_A2A_OPENAPI_DOCUMENTATION.md  # API documentation
+│   ├── OASIS_A2A_OPENAPI_DOCUMENTATION.md    # API documentation
+│   ├── A2A_OPENSERV_INTEGRATION.md           # SERV/OpenSERV integration plan
+│   ├── INTEGRATION_GUIDE.md                  # Integration guide
+│   └── TROUBLESHOOTING_GUIDE.md              # Troubleshooting guide
 │
 ├── demo/
-│   ├── a2a_solana_payment_demo.py           # Original payment demo
-│   ├── a2a_integrated_payment_demo.py       # Integrated A2A payment demo
+│   ├── a2a_solana_payment_demo.py            # Original payment demo
+│   ├── a2a_integrated_payment_demo.py        # Integrated A2A payment demo
+│   ├── a2a_serv_discovery_demo.py            # SERV discovery demo
+│   ├── a2a_openserv_workflow_demo.py         # OpenSERV workflow demo
 │   └── A2A_PAYMENT_INTEGRATION.md            # Payment integration guide
 │
 └── test/
-    ├── test_a2a_endpoints.sh          # Bash test script
-    ├── test_a2a_endpoints.py          # Python test script
-    └── run_a2a_tests.sh               # Comprehensive test script
+    ├── test_a2a_endpoints.sh                 # Bash test script
+    ├── test_a2a_endpoints.py                 # Python test script
+    ├── test_a2a_serv_integration.py          # SERV integration tests
+    ├── test_a2a_openserv_integration.py      # OpenSERV integration tests
+    └── run_a2a_tests.sh                      # Comprehensive test script
 ```
 
 ---
