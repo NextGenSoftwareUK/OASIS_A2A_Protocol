@@ -26,9 +26,18 @@ This repository contains the complete implementation of the **Agent-to-Agent (A2
 
 ---
 
+## Repository Structure
+
+This repository contains:
+- **`src/`** - All A2A Protocol integration source code (copied from OASIS repo for easy access)
+- **`docs/`** - Comprehensive documentation and integration guides
+- **`test/`** - Integration test scripts
+- **`demo/`** - Demo scripts and examples
+
 ## Table of Contents
 
 - [Quick Start](#quick-start)
+- [Source Code](#source-code)
 - [Architecture](#architecture)
 - [API Documentation](#api-documentation)
 - [Examples](#examples)
@@ -73,6 +82,38 @@ This repository contains the complete implementation of the **Agent-to-Agent (A2
    export JWT_TOKEN="your_jwt_token"
    ./test_a2a_endpoints.sh
    ```
+
+---
+
+## Source Code
+
+All A2A Protocol integration code is available in the `src/` directory for easy access:
+
+```
+src/
+├── Managers/
+│   ├── A2AManager/          # Core A2A Protocol + Integrations
+│   │   ├── A2AManager.cs
+│   │   ├── A2AManager-JsonRpc.cs
+│   │   ├── A2AManager-SERV.cs ✅
+│   │   ├── A2AManager-OpenSERV.cs ✅
+│   │   ├── A2AManager-NFT.cs ✅
+│   │   ├── A2AManager-Karma.cs ✅
+│   │   └── A2AManager-Mission.cs ✅
+│   └── AgentManager/
+│       ├── AgentManager.cs
+│       └── AgentManager-AgentCard.cs
+├── Controllers/
+│   └── A2AController.cs ✅ (All API endpoints)
+└── Interfaces/
+    ├── IA2AMessage.cs
+    ├── IAgentCapabilities.cs
+    └── IAgentCard.cs
+```
+
+See [`src/README.md`](src/README.md) for detailed file descriptions.
+
+**Note:** These are copies of the actual implementation files in the OASIS repository, provided here for easy reference. The actual code is part of the main OASIS codebase.
 
 ---
 
