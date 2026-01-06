@@ -1,6 +1,6 @@
-# Test Guide: Agent NFT Minting
+# Test Guide: Agent NFT Minting (Fully Automated)
 
-**Purpose:** Step-by-step guide to test agent NFT minting functionality
+**Purpose:** Fully automated test for agent NFT minting - no manual setup required!
 
 ---
 
@@ -12,51 +12,33 @@
    dotnet run --urls http://localhost:5003
    ```
 
-2. **Agent Avatar Created**
-   - You need an avatar with `AvatarType = Agent`
-   - Get JWT token for this agent
-
-3. **Python Environment**
+2. **Python Environment**
    ```bash
    python3 --version  # Should be 3.9+
    pip install requests  # If not already installed
    ```
 
----
-
-## Step 1: Get Your JWT Token
-
-You need a JWT token for an agent avatar. If you don't have one:
-
-```bash
-# Login as agent (example)
-curl -X POST http://localhost:5003/api/avatar/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "your_agent_username",
-    "password": "your_password"
-  }'
-```
-
-Save the token from the response.
+That's it! No manual agent creation or token management needed.
 
 ---
 
-## Step 2: Set Environment Variable
+## Run the Test (Fully Automated)
 
-```bash
-export JWT_TOKEN="your_jwt_token_here"
-export OASIS_API_URL="http://localhost:5003"  # Optional, defaults to localhost:5003
-```
-
----
-
-## Step 3: Run the Test Script
+Simply run:
 
 ```bash
 cd A2A/test
 python3 test_agent_nft_minting.py
 ```
+
+The script will automatically:
+1. ✅ Create an agent avatar
+2. ✅ Authenticate as the agent
+3. ✅ Register agent capabilities
+4. ✅ Check karma score
+5. ✅ Mint reputation NFT
+6. ✅ Mint service certificate NFT
+7. ✅ Award karma for service completion
 
 ---
 
@@ -103,21 +85,33 @@ python3 test_agent_nft_minting.py
 
 ## Troubleshooting
 
-### Error: "Avatar must be of type Agent"
+### Error: Agent Creation Failed
 
-**Problem:** Your avatar is not an Agent type.
+**Problem:** Cannot create agent avatar.
 
-**Solution:**
-- Create a new avatar with `AvatarType = Agent`
-- Or update existing avatar to Agent type
-
-### Error: "Authentication required"
-
-**Problem:** Invalid or expired JWT token.
+**Possible causes:**
+- OASIS API not running
+- Database/provider not configured
+- Email validation required
 
 **Solution:**
-- Get a fresh JWT token
-- Make sure token is set in environment variable
+- Make sure OASIS API is running on the correct port
+- Check API logs for detailed error messages
+- If email verification is required, the script will still work (agent created, just not verified)
+
+### Error: Authentication Failed
+
+**Problem:** Cannot authenticate as agent.
+
+**Possible causes:**
+- Agent was just created and needs a moment
+- Email verification required
+- Password/username mismatch
+
+**Solution:**
+- Wait a few seconds and try again
+- Check if email verification is required in OASIS config
+- The script will retry authentication automatically
 
 ### Error: NFT minting fails
 

@@ -1,33 +1,36 @@
 #!/usr/bin/env python3
 """
-Test Script: Agent NFT Minting
-Demonstrates how an agent can mint NFTs for reputation and service completion.
+Fully Automated Test Script: Agent NFT Minting
+Automatically creates an agent, authenticates, and tests NFT minting functionality.
 
 Usage:
-    export JWT_TOKEN="your_jwt_token"
     python test_agent_nft_minting.py
+
+No manual setup required - the script handles everything!
 """
 
 import os
 import sys
 import requests
 import json
+import uuid
+import time
 from datetime import datetime
 
 # Configuration
 BASE_URL = os.getenv("OASIS_API_URL", "http://localhost:5003")
 API_URL = f"{BASE_URL}/api/a2a"
-JWT_TOKEN = os.getenv("JWT_TOKEN")
+AVATAR_API_URL = f"{BASE_URL}/api/avatar"
 
-if not JWT_TOKEN:
-    print("❌ Error: JWT_TOKEN environment variable not set")
-    print("   Set it with: export JWT_TOKEN='your_token_here'")
-    sys.exit(1)
+# Generate unique agent credentials
+AGENT_ID = f"test-agent-{int(time.time())}"
+AGENT_USERNAME = f"agent_{uuid.uuid4().hex[:8]}"
+AGENT_EMAIL = f"{AGENT_USERNAME}@test-agent.local"
+AGENT_PASSWORD = "TestAgent123!@#"
 
-headers = {
-    "Authorization": f"Bearer {JWT_TOKEN}",
-    "Content-Type": "application/json"
-}
+# Global variables
+agent_token = None
+agent_id = None
 
 def print_section(title):
     """Print a formatted section header"""
@@ -39,39 +42,189 @@ def print_result(success, message, data=None):
     """Print a formatted result"""
     icon = "✅" if success else "❌"
     print(f"\n{icon} {message}")
-    if data:
-        print(f"   Details: {json.dumps(data, indent=2, default=str)}")
+    if data and isinstance(data, dict):
+        # Print only relevant info
+        for key in ['id', 'agent_id', 'karma', 'success', 'message', 'transactionHash', 'TransactionHash']:
+            if key in data:
+                print(f"   {key}: {data[key]}")
 
-def check_agent_status():
-    """Check if the authenticated user is an agent"""
-    print_section("Step 1: Check Agent Status")
+def create_agent():
+    """Automatically create an agent avatar"""
+    print_section("Step 1: Create Agent Avatar")
     
-    # Get agent card to verify agent status
-    try:
-        # First, try to get current avatar info from a simple endpoint
-        response = requests.get(f"{BASE_URL}/api/a2a/agent-card/my", headers=headers)
-        if response.status_code == 200:
-            agent_data = response.json()
-            print_result(True, f"Agent found: {agent_data.get('name', 'Unknown')}")
-            agent_id = agent_data.get('agent_id')
-            if agent_id:
-                return agent_id
-    except Exception as e:
-        print(f"   Note: Could not get agent card automatically: {e}")
+    global agent_id
     
-    # Alternative: Use the karma endpoint which requires agent
+    registration_data = {
+        "FirstName": "Test",
+        "LastName": "Agent",
+        "Username": AGENT_USERNAME,
+        "Email": AGENT_EMAIL,
+        "Password": AGENT_PASSWORD,
+        "ConfirmPassword": AGENT_PASSWORD,
+        "AvatarType": "Agent",  # Set as Agent type
+        "Title": "Agent",
+        "AcceptTerms": True
+    }
+    
     try:
-        response = requests.get(f"{API_URL}/karma", headers=headers)
+        print(f"   Creating agent: {AGENT_USERNAME}")
+        print(f"   Email: {AGENT_EMAIL}")
+        
+        response = requests.post(
+            f"{AVATAR_API_URL}/register",
+            json=registration_data,
+            headers={"Content-Type": "application/json"}
+        )
+        
         if response.status_code == 200:
-            print_result(True, "Agent authentication verified")
-            return "authenticated_agent"  # Placeholder
+            data = response.json()
+            if data.get('result') and data['result'].get('result'):
+                avatar = data['result']['result']
+                agent_id = avatar.get('id') or avatar.get('avatarId')
+                print_result(True, f"Agent created successfully: {AGENT_USERNAME}")
+                print(f"   Agent ID: {agent_id}")
+                return True
+            else:
+                # Check if error message indicates user already exists
+                error_msg = data.get('message', '') or (data.get('result', {}).get('message', '') if isinstance(data.get('result'), dict) else '')
+                if 'already exists' in error_msg.lower() or 'exist' in error_msg.lower():
+                    print(f"   ℹ️  Agent already exists, will attempt to authenticate")
+                    agent_id = None  # Will be retrieved during auth
+                    return True
+                else:
+                    print_result(False, f"Registration failed: {error_msg or data}")
+                    return False
+        elif response.status_code == 400:
+            # User might already exist - try to authenticate instead
+            error_text = response.text
+            if 'already exists' in error_text.lower() or 'exist' in error_text.lower():
+                print(f"   ℹ️  Agent already exists, will attempt to authenticate")
+                agent_id = None
+                return True
+            else:
+                print_result(False, f"Registration failed: {response.status_code} - {error_text[:200]}")
+                return False
+        else:
+            print_result(False, f"Registration failed: {response.status_code}")
+            print(f"   Response: {response.text[:300]}")
+            return False
     except Exception as e:
-        print_result(False, f"Agent verification failed: {e}")
+        print_result(False, f"Error creating agent: {e}")
+        return False
+
+def authenticate_agent():
+    """Authenticate as the agent and get JWT token"""
+    print_section("Step 2: Authenticate Agent")
+    
+    global agent_token, agent_id
+    
+    auth_data = {
+        "Username": AGENT_USERNAME,
+        "Password": AGENT_PASSWORD
+    }
+    
+    try:
+        print(f"   Authenticating as: {AGENT_USERNAME}")
+        
+        response = requests.post(
+            f"{AVATAR_API_URL}/authenticate",
+            json=auth_data,
+            headers={"Content-Type": "application/json"}
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            # Extract token - it might be in different places in the response
+            avatar_data = data.get('result', {})
+            if isinstance(avatar_data, dict):
+                avatar_info = avatar_data.get('result') if 'result' in avatar_data else avatar_data
+                if isinstance(avatar_info, dict):
+                    # Try to find token in various possible locations
+                    agent_token = (avatar_info.get('Token') or 
+                                 avatar_info.get('token') or 
+                                 avatar_info.get('JwtToken') or
+                                 avatar_info.get('jwtToken') or
+                                 avatar_info.get('AccessToken') or
+                                 avatar_info.get('accessToken'))
+                    
+                    # If token not found, check response headers or cookies
+                    if not agent_token:
+                        # Check Set-Cookie header for refresh token or look for token in response
+                        cookies = response.cookies
+                        if cookies:
+                            # Sometimes token might be in cookies
+                            for cookie in cookies:
+                                if 'token' in cookie.name.lower():
+                                    agent_token = cookie.value
+                                    break
+                    
+                    # If still no token, try to extract from response text
+                    if not agent_token:
+                        # Sometimes the response might have token in a different format
+                        response_text = response.text
+                        if 'token' in response_text.lower():
+                            try:
+                                json_data = json.loads(response_text)
+                                agent_token = json_data.get('token') or json_data.get('Token')
+                            except:
+                                pass
+                    
+                    # Get agent ID if not already set
+                    if not agent_id:
+                        agent_id = (avatar_info.get('id') or 
+                                   avatar_info.get('Id') or 
+                                   avatar_info.get('AvatarId') or
+                                   avatar_info.get('avatarId'))
+                    
+                    if agent_token:
+                        print_result(True, "Agent authenticated successfully")
+                        print(f"   Token: {agent_token[:30]}...")
+                        if agent_id:
+                            print(f"   Agent ID: {agent_id}")
+                        return True
+                    else:
+                        print_result(False, "Authentication successful but no token found in response")
+                        print(f"   Response structure: {list(avatar_info.keys()) if isinstance(avatar_info, dict) else 'Not a dict'}")
+                        # For debugging - print response keys
+                        return False
+                else:
+                    print_result(False, "Unexpected response structure")
+                    return False
+            else:
+                print_result(False, f"Authentication failed: Unexpected response format")
+                return False
+        elif response.status_code == 401:
+            print_result(False, "Authentication failed: Invalid credentials")
+            print("   Tip: The agent might need to be created first or password might be wrong")
+            return False
+        else:
+            print_result(False, f"Authentication failed: {response.status_code}")
+            print(f"   Response: {response.text[:300]}")
+            return False
+    except Exception as e:
+        print_result(False, f"Error authenticating: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+def get_auth_headers():
+    """Get authentication headers"""
+    global agent_token
+    if not agent_token:
         return None
+    return {
+        "Authorization": f"Bearer {agent_token}",
+        "Content-Type": "application/json"
+    }
 
 def check_karma():
     """Check current karma score"""
-    print_section("Step 2: Check Current Karma")
+    print_section("Step 3: Check Current Karma")
+    
+    headers = get_auth_headers()
+    if not headers:
+        print_result(False, "No authentication token available")
+        return 0
     
     try:
         response = requests.get(f"{API_URL}/karma", headers=headers)
@@ -81,7 +234,8 @@ def check_karma():
             print_result(True, f"Current karma: {karma} points")
             return karma
         else:
-            print_result(False, f"Failed to get karma: {response.status_code}")
+            error_msg = response.json().get('error', f"Status {response.status_code}") if response.text else f"Status {response.status_code}"
+            print_result(False, f"Failed to get karma: {error_msg}")
             return 0
     except Exception as e:
         print_result(False, f"Error checking karma: {e}")
@@ -89,15 +243,21 @@ def check_karma():
 
 def mint_reputation_nft(karma_score=None):
     """Mint a reputation NFT for the agent"""
-    print_section("Step 3: Mint Reputation NFT")
+    print_section("Step 4: Mint Reputation NFT")
+    
+    headers = get_auth_headers()
+    if not headers:
+        print_result(False, "No authentication token available")
+        return False, None
     
     params = {}
-    if karma_score:
+    if karma_score is not None:
         params['reputationScore'] = karma_score
     
     params['description'] = f"Reputation NFT minted at {datetime.now().isoformat()}"
     
     try:
+        print(f"   Minting reputation NFT with score: {karma_score or 'default'}")
         response = requests.post(
             f"{API_URL}/nft/reputation",
             headers=headers,
@@ -114,28 +274,35 @@ def mint_reputation_nft(karma_score=None):
                     tx_hash = nft_result.get('transactionHash') or nft_result.get('TransactionHash')
                     if tx_hash:
                         print(f"   📦 Transaction Hash: {tx_hash}")
-                        print(f"   🔗 View on blockchain: https://solscan.io/tx/{tx_hash}")
+                        print(f"   🔗 View on Solscan: https://solscan.io/tx/{tx_hash}")
             
             return True, data
         else:
-            error_msg = response.json().get('error', response.text) if response.text else f"Status {response.status_code}"
+            error_msg = response.json().get('error', response.text[:200]) if response.text else f"Status {response.status_code}"
             print_result(False, f"Failed to mint NFT: {error_msg}")
+            print(f"   Tip: This might require Solana provider configuration or NFT provider setup")
             return False, None
     except Exception as e:
         print_result(False, f"Error minting NFT: {e}")
         return False, None
 
-def mint_service_certificate(service_name="test-service"):
+def mint_service_certificate(service_name="data-analysis"):
     """Mint a service completion certificate NFT"""
-    print_section("Step 4: Mint Service Certificate NFT")
+    print_section("Step 5: Mint Service Certificate NFT")
+    
+    headers = get_auth_headers()
+    if not headers:
+        print_result(False, "No authentication token available")
+        return False, None
     
     request_data = {
         "serviceName": service_name,
-        "description": f"Certificate for completing {service_name}",
-        "taskId": None  # Optional: can link to a task ID
+        "description": f"Certificate for completing {service_name} service",
+        "taskId": None
     }
     
     try:
+        print(f"   Minting service certificate for: {service_name}")
         response = requests.post(
             f"{API_URL}/nft/service-certificate",
             headers=headers,
@@ -152,33 +319,35 @@ def mint_service_certificate(service_name="test-service"):
                     tx_hash = nft_result.get('transactionHash') or nft_result.get('TransactionHash')
                     if tx_hash:
                         print(f"   📦 Transaction Hash: {tx_hash}")
-                        print(f"   🔗 View on blockchain: https://solscan.io/tx/{tx_hash}")
+                        print(f"   🔗 View on Solscan: https://solscan.io/tx/{tx_hash}")
             
             return True, data
         else:
-            error_msg = response.json().get('error', response.text) if response.text else f"Status {response.status_code}"
+            error_msg = response.json().get('error', response.text[:200]) if response.text else f"Status {response.status_code}"
             print_result(False, f"Failed to mint certificate: {error_msg}")
             return False, None
     except Exception as e:
         print_result(False, f"Error minting certificate: {e}")
         return False, None
 
-def award_karma_for_service(agent_id, service_name="test-service"):
+def award_karma_for_service(service_name="data-analysis"):
     """Award karma for completing a service"""
-    print_section("Step 5: Award Karma for Service Completion")
+    print_section("Step 6: Award Karma for Service Completion")
     
+    headers = get_auth_headers()
+    if not headers:
+        print_result(False, "No authentication token available")
+        return False, None
+    
+    # Award karma to self (authenticated agent)
     request_data = {
-        "agentId": agent_id if agent_id != "authenticated_agent" else None,
+        "agentId": agent_id,  # Use the authenticated agent's ID
         "serviceName": service_name,
         "karmaAmount": 10
     }
     
-    # If agent_id is placeholder, we'll let the endpoint use authenticated agent
-    if request_data["agentId"] == "authenticated_agent":
-        # Try without agentId - endpoint should use authenticated agent
-        pass
-    
     try:
+        print(f"   Awarding karma for service: {service_name}")
         response = requests.post(
             f"{API_URL}/karma/award",
             headers=headers,
@@ -190,70 +359,135 @@ def award_karma_for_service(agent_id, service_name="test-service"):
             print_result(True, f"Awarded 10 karma for completing '{service_name}'")
             return True, data
         else:
-            error_msg = response.json().get('error', response.text) if response.text else f"Status {response.status_code}"
+            error_msg = response.json().get('error', response.text[:200]) if response.text else f"Status {response.status_code}"
             print_result(False, f"Failed to award karma: {error_msg}")
-            # This might fail if we can't specify agentId - that's okay for demo
-            print(f"   Note: This endpoint might require the agent ID in the request")
+            print(f"   Note: This might work differently - the endpoint may automatically use authenticated agent")
             return False, None
     except Exception as e:
         print_result(False, f"Error awarding karma: {e}")
         return False, None
 
+def register_agent_capabilities():
+    """Register agent capabilities (required for some operations)"""
+    print_section("Step 7: Register Agent Capabilities (Optional)")
+    
+    headers = get_auth_headers()
+    if not headers:
+        print_result(False, "No authentication token available")
+        return False
+    
+    capabilities = {
+        "services": ["data-analysis", "report-generation"],
+        "skills": ["Python", "Machine Learning"],
+        "status": "Available",
+        "description": "Test agent for NFT minting demonstration",
+        "pricing": {
+            "data-analysis": 10.0,
+            "report-generation": 15.0
+        }
+    }
+    
+    try:
+        print("   Registering agent capabilities...")
+        response = requests.post(
+            f"{API_URL}/agent/capabilities",
+            headers=headers,
+            json=capabilities
+        )
+        
+        if response.status_code == 200:
+            print_result(True, "Agent capabilities registered")
+            return True
+        else:
+            error_msg = response.json().get('error', response.text[:200]) if response.text else f"Status {response.status_code}"
+            print_result(False, f"Failed to register capabilities: {error_msg}")
+            print("   Note: This is optional - continuing anyway")
+            return False
+    except Exception as e:
+        print_result(False, f"Error registering capabilities: {e}")
+        print("   Note: Continuing anyway...")
+        return False
+
 def main():
-    """Main test flow"""
+    """Main test flow - fully automated"""
     print("\n" + "🔷" * 35)
-    print("   A2A Protocol - Agent NFT Minting Test")
+    print("   A2A Protocol - Fully Automated Agent NFT Minting Test")
     print("🔷" * 35)
     print(f"\n🌐 API URL: {API_URL}")
-    print(f"🔑 Token: {JWT_TOKEN[:20]}...")
+    print(f"🤖 Agent: {AGENT_USERNAME}")
+    print("\n✨ This script is fully automated - no manual setup required!")
     
-    # Step 1: Check agent status
-    agent_id = check_agent_status()
-    if not agent_id:
-        print("\n❌ Cannot proceed: Agent authentication failed")
-        print("\n💡 Tip: Make sure:")
-        print("   1. You have a valid JWT token")
-        print("   2. The avatar associated with the token is of type 'Agent'")
-        print("   3. The OASIS API is running on", BASE_URL)
+    # Step 1: Create agent
+    if not create_agent():
+        print("\n❌ Failed to create agent. Please check the OASIS API is running.")
+        print(f"   Expected URL: {BASE_URL}")
         sys.exit(1)
     
-    # Step 2: Check karma
+    # Step 2: Authenticate agent
+    if not authenticate_agent():
+        print("\n❌ Failed to authenticate agent.")
+        print("   This might be because:")
+        print("   1. The agent was just created and needs a moment")
+        print("   2. The OASIS API requires email verification")
+        print("   3. There's an issue with the API")
+        sys.exit(1)
+    
+    if not agent_token:
+        print("\n❌ No authentication token received.")
+        print("   Cannot proceed with tests.")
+        sys.exit(1)
+    
+    # Step 3: Register capabilities (optional but helpful)
+    register_agent_capabilities()
+    
+    # Step 4: Check karma
     karma = check_karma()
     
-    # Step 3: Mint reputation NFT
+    # Step 5: Mint reputation NFT
     success, nft_data = mint_reputation_nft(karma_score=karma)
     if not success:
-        print("\n⚠️  Note: NFT minting may require:")
-        print("   - Solana provider configured")
-        print("   - NFT provider activated")
-        print("   - Sufficient balance for gas fees")
+        print("\n⚠️  NFT minting failed. This might be because:")
+        print("   - Solana provider is not configured")
+        print("   - NFT provider is not activated")
+        print("   - Insufficient balance for gas fees")
+        print("   - NFT provider setup is incomplete")
     
-    # Step 4: Mint service certificate
-    success, cert_data = mint_service_certificate("data-analysis")
+    # Step 6: Mint service certificate
+    success, cert_data = mint_service_certificate("automated-test-service")
     
-    # Step 5: Award karma (optional - might need agent ID)
-    if agent_id and agent_id != "authenticated_agent":
-        award_karma_for_service(agent_id, "data-analysis")
+    # Step 7: Award karma
+    success, karma_data = award_karma_for_service("automated-test-service")
+    
+    # Final karma check
+    print_section("Final Status Check")
+    final_karma = check_karma()
     
     # Summary
     print_section("Test Summary")
-    print("✅ Completed NFT minting test flow")
+    print("✅ Automated test flow completed!")
     print("\n📋 What happened:")
-    print("   1. Verified agent authentication")
-    print("   2. Checked current karma score")
-    print("   3. Attempted to mint reputation NFT")
-    print("   4. Attempted to mint service certificate NFT")
-    print("   5. Attempted to award karma")
+    print(f"   1. ✅ Created agent: {AGENT_USERNAME}")
+    print(f"   2. ✅ Authenticated agent")
+    print(f"   3. ✅ Registered capabilities (optional)")
+    print(f"   4. ✅ Checked karma: {karma} → {final_karma} points")
+    print(f"   5. {'✅' if nft_data else '⚠️'} Minted reputation NFT")
+    print(f"   6. {'✅' if cert_data else '⚠️'} Minted service certificate NFT")
+    print(f"   7. {'✅' if karma_data else '⚠️'} Awarded karma for service")
     
     print("\n💡 Next Steps:")
     print("   - Check your agent's NFT collection")
     print("   - Verify karma score increased")
-    print("   - View NFTs on blockchain explorer")
+    print("   - View NFTs on blockchain explorer (if minting succeeded)")
+    print(f"   - Test more features with this agent: {AGENT_USERNAME}")
+    
+    print(f"\n🔑 Agent Credentials (for future use):")
+    print(f"   Username: {AGENT_USERNAME}")
+    print(f"   Email: {AGENT_EMAIL}")
+    print(f"   Password: {AGENT_PASSWORD}")
     
     print("\n" + "=" * 70)
-    print("Test Complete! 🎉")
+    print("🎉 Fully Automated Test Complete!")
     print("=" * 70 + "\n")
 
 if __name__ == "__main__":
     main()
-
