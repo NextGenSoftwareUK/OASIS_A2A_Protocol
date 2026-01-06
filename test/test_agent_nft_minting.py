@@ -134,47 +134,32 @@ def authenticate_agent():
         
         if response.status_code == 200:
             data = response.json()
-            # Extract token - it might be in different places in the response
+            # OASIS response structure: { result: { result: IAvatar } } or { result: IAvatar }
+            # Extract nested avatar data
             avatar_data = data.get('result', {})
+            
+            # Handle nested result structure
             if isinstance(avatar_data, dict):
                 avatar_info = avatar_data.get('result') if 'result' in avatar_data else avatar_data
+                
                 if isinstance(avatar_info, dict):
-                    # Try to find token in various possible locations
-                    agent_token = (avatar_info.get('Token') or 
-                                 avatar_info.get('token') or 
-                                 avatar_info.get('JwtToken') or
-                                 avatar_info.get('jwtToken') or
-                                 avatar_info.get('AccessToken') or
-                                 avatar_info.get('accessToken'))
+                    # JWT token is stored in JwtToken property
+                    agent_token = avatar_info.get('JwtToken') or avatar_info.get('jwtToken')
                     
-                    # If token not found, check response headers or cookies
+                    # If not found, try other common locations
                     if not agent_token:
-                        # Check Set-Cookie header for refresh token or look for token in response
-                        cookies = response.cookies
-                        if cookies:
-                            # Sometimes token might be in cookies
-                            for cookie in cookies:
-                                if 'token' in cookie.name.lower():
-                                    agent_token = cookie.value
-                                    break
-                    
-                    # If still no token, try to extract from response text
-                    if not agent_token:
-                        # Sometimes the response might have token in a different format
-                        response_text = response.text
-                        if 'token' in response_text.lower():
-                            try:
-                                json_data = json.loads(response_text)
-                                agent_token = json_data.get('token') or json_data.get('Token')
-                            except:
-                                pass
+                        agent_token = (avatar_info.get('Token') or 
+                                     avatar_info.get('token') or 
+                                     avatar_info.get('AccessToken') or
+                                     avatar_info.get('accessToken'))
                     
                     # Get agent ID if not already set
                     if not agent_id:
                         agent_id = (avatar_info.get('id') or 
                                    avatar_info.get('Id') or 
                                    avatar_info.get('AvatarId') or
-                                   avatar_info.get('avatarId'))
+                                   avatar_info.get('avatarId') or
+                                   str(avatar_info.get('avatarId', '')))
                     
                     if agent_token:
                         print_result(True, "Agent authenticated successfully")
@@ -183,9 +168,12 @@ def authenticate_agent():
                             print(f"   Agent ID: {agent_id}")
                         return True
                     else:
-                        print_result(False, "Authentication successful but no token found in response")
-                        print(f"   Response structure: {list(avatar_info.keys()) if isinstance(avatar_info, dict) else 'Not a dict'}")
-                        # For debugging - print response keys
+                        # Debug: show what keys are available
+                        available_keys = list(avatar_info.keys())[:20]  # First 20 keys
+                        print_result(False, "Authentication successful but JWT token not found in response")
+                        print(f"   Available keys in response: {available_keys}")
+                        print(f"   Tip: Token might be in 'JwtToken' field - check response structure")
+                        # Return False but don't exit - might still work with manual token
                         return False
                 else:
                     print_result(False, "Unexpected response structure")
