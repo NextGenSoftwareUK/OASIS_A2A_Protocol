@@ -19,7 +19,10 @@ from datetime import datetime
 
 # Configuration
 BASE_URL = os.getenv("OASIS_API_URL", "http://localhost:5003")
-API_URL = f"{BASE_URL}/api/a2a"
+# Try both lowercase and uppercase routes (ASP.NET Core route matching)
+API_URL_LOWER = f"{BASE_URL}/api/a2a"
+API_URL_UPPER = f"{BASE_URL}/api/A2A"
+API_URL = API_URL_UPPER  # Default to uppercase (ASP.NET Core standard)
 AVATAR_API_URL = f"{BASE_URL}/api/avatar"
 
 # Generate unique agent credentials
@@ -215,7 +218,11 @@ def check_karma():
         return 0
     
     try:
+        # Try uppercase route first (ASP.NET Core standard)
         response = requests.get(f"{API_URL}/karma", headers=headers)
+        if response.status_code == 404:
+            # Try lowercase route
+            response = requests.get(f"{API_URL_LOWER}/karma", headers=headers)
         if response.status_code == 200:
             data = response.json()
             karma = data.get('karma', 0)
@@ -251,6 +258,13 @@ def mint_reputation_nft(karma_score=None):
             headers=headers,
             params=params
         )
+        if response.status_code == 404:
+            # Try lowercase route
+            response = requests.post(
+                f"{API_URL_LOWER}/nft/reputation",
+                headers=headers,
+                params=params
+            )
         
         if response.status_code == 200:
             data = response.json()
@@ -296,6 +310,13 @@ def mint_service_certificate(service_name="data-analysis"):
             headers=headers,
             json=request_data
         )
+        if response.status_code == 404:
+            # Try lowercase route
+            response = requests.post(
+                f"{API_URL_LOWER}/nft/service-certificate",
+                headers=headers,
+                json=request_data
+            )
         
         if response.status_code == 200:
             data = response.json()
@@ -341,6 +362,13 @@ def award_karma_for_service(service_name="data-analysis"):
             headers=headers,
             json=request_data
         )
+        if response.status_code == 404:
+            # Try lowercase route
+            response = requests.post(
+                f"{API_URL_LOWER}/karma/award",
+                headers=headers,
+                json=request_data
+            )
         
         if response.status_code == 200:
             data = response.json()
@@ -382,6 +410,13 @@ def register_agent_capabilities():
             headers=headers,
             json=capabilities
         )
+        if response.status_code == 404:
+            # Try lowercase route
+            response = requests.post(
+                f"{API_URL_LOWER}/agent/capabilities",
+                headers=headers,
+                json=capabilities
+            )
         
         if response.status_code == 200:
             print_result(True, "Agent capabilities registered")
